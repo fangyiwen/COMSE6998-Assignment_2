@@ -1,0 +1,256 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Assignment 2: Voice Controlled Photo Album 2021-03-13",
+  "Resources": {
+    "frontendBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "myawsbucket-comse6998-assignment2-cf",
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": false,
+          "BlockPublicPolicy": false,
+          "IgnorePublicAcls": false,
+          "RestrictPublicBuckets": false
+        },
+        "WebsiteConfiguration": {
+          "IndexDocument": "index.html"
+        }
+      }
+    },
+    "frontendBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "frontendBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "PublicReadGetObject",
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "s3:GetObject",
+              "Resource": "arn:aws:s3:::myawsbucket-comse6998-assignment2-cf/*"
+            }
+          ]
+        }
+      }
+    },
+    "frontendP2CodePipeline": {
+      "Type": "AWS::CodePipeline::Pipeline",
+      "Properties": {
+        "ArtifactStore": {
+          "Location": "myawsbucket-comse6998",
+          "Type": "S3"
+        },
+        "Name": "hw2-photo-frontend-p2-cf",
+        "RoleArn": "arn:aws:iam::640615917264:role/service-role/frontend-P2-CodePipeline-Role-cf",
+        "Stages": [
+          {
+            "Actions": [
+              {
+                "ActionTypeId": {
+                  "Category": "Source",
+                  "Owner": "ThirdParty",
+                  "Provider": "GitHub",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "Owner": "fangyiwen",
+                  "Repo": "comse6998-hw2-photo-album-frontend-p2",
+                  "Branch": "master",
+                  "OAuthToken": "OAuth access token here"
+                },
+                "OutputArtifacts": [
+                  {
+                    "Name": "SourceArtifact"
+                  }
+                ],
+                "Name": "Source",
+                "Namespace": "SourceVariables",
+                "RunOrder": 1
+              }
+            ],
+            "Name": "Source"
+          },
+          {
+            "Name": "Deploy",
+            "Actions": [
+              {
+                "Name": "Deploy",
+                "Namespace": "DeployVariables",
+                "InputArtifacts": [
+                  {
+                    "Name": "SourceArtifact"
+                  }
+                ],
+                "ActionTypeId": {
+                  "Category": "Deploy",
+                  "Owner": "AWS",
+                  "Version": "1",
+                  "Provider": "S3"
+                },
+                "Configuration": {
+                  "BucketName": {
+                    "Ref": "frontendBucket"
+                  },
+                  "Extract": true
+                },
+                "RunOrder": 1
+              }
+            ]
+          }
+        ]
+      },
+      "DependsOn": "frontendP2CodePipelineRole"
+    },
+    "frontendP2CodePipelineRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Description": "Frontend P2 CodePipeline role of HW2 for CloudFormation",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AdministratorAccess"
+        ],
+        "Path": "/service-role/",
+        "RoleName": "frontend-P2-CodePipeline-Role-cf"
+      }
+    },
+    "lambdaP1CodePipeline": {
+      "Type": "AWS::CodePipeline::Pipeline",
+      "Properties": {
+        "ArtifactStore": {
+          "Location": "myawsbucket-comse6998",
+          "Type": "S3"
+        },
+        "Name": "hw2-photo-lambda-p1-cf",
+        "RoleArn": "arn:aws:iam::640615917264:role/service-role/lambda-P1-CodePipeline-Role-cf",
+        "Stages": [
+          {
+            "Actions": [
+              {
+                "ActionTypeId": {
+                  "Category": "Source",
+                  "Owner": "ThirdParty",
+                  "Provider": "GitHub",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "Owner": "fangyiwen",
+                  "Repo": "comse6998-hw2-photo-album-lambda-p1",
+                  "Branch": "master",
+                  "OAuthToken": "88e9d2b3fb192d39095def5c1702e91588f688bd"
+                },
+                "OutputArtifacts": [
+                  {
+                    "Name": "SourceArtifact"
+                  }
+                ],
+                "Name": "Source",
+                "Namespace": "SourceVariables",
+                "RunOrder": 1
+              }
+            ],
+            "Name": "Source"
+          },
+          {
+            "Name": "Build",
+            "Actions": [
+              {
+                "Name": "Build",
+                "Namespace": "BuildVariables",
+                "InputArtifacts": [
+                  {
+                    "Name": "SourceArtifact"
+                  }
+                ],
+                "OutputArtifacts": [
+                  {
+                    "Name": "BuildArtifact"
+                  }
+                ],
+                "ActionTypeId": {
+                  "Category": "Build",
+                  "Owner": "AWS",
+                  "Version": "1",
+                  "Provider": "CodeBuild"
+                },
+                "Configuration": {
+                  "ProjectName": "hw2-photo-lambda-build-project"
+                },
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "Deploy",
+            "Actions": [
+              {
+                "Name": "Deploy",
+                "Namespace": "DeployVariables",
+                "InputArtifacts": [
+                  {
+                    "Name": "BuildArtifact"
+                  }
+                ],
+                "ActionTypeId": {
+                  "Category": "Deploy",
+                  "Owner": "AWS",
+                  "Version": "1",
+                  "Provider": "CloudFormation"
+                },
+                "Configuration": {
+                  "ActionMode": "CREATE_UPDATE",
+                  "StackName": "COMSE6998-HW2-VoiceControlledPhotoAlbum-T1",
+                  "Capabilities": "CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND",
+                  "RoleArn": "arn:aws:iam::640615917264:role/service-role/lambda-P1-CodePipeline-Role-cf",
+                  "TemplatePath": "BuildArtifact::outputsamtemplate.yml"
+                },
+                "RunOrder": 1
+              }
+            ]
+          }
+        ]
+      },
+      "DependsOn": "lambdaP1CodePipelineRole"
+    },
+    "lambdaP1CodePipelineRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": [
+                  "codepipeline.amazonaws.com",
+                  "cloudformation.amazonaws.com"
+                ]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Description": "Lambda P1 CodePipeline role of HW2 for CloudFormation",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AdministratorAccess"
+        ],
+        "Path": "/service-role/",
+        "RoleName": "lambda-P1-CodePipeline-Role-cf"
+      }
+    }
+  }
+}

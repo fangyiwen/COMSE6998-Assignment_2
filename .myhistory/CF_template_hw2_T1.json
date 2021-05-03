@@ -1,0 +1,256 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Assignment 2: Voice Controlled Photo Album 2021-03-13",
+  "Resources": {
+    "photosBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "hw2-photos-s3-bucket-b2-cf",
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": false,
+          "BlockPublicPolicy": false,
+          "IgnorePublicAcls": false,
+          "RestrictPublicBuckets": false
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedHeaders": [
+                "*"
+              ],
+              "AllowedMethods": [
+                "GET",
+                "PUT",
+                "POST",
+                "DELETE"
+              ],
+              "AllowedOrigins": [
+                "*"
+              ]
+            }
+          ]
+        },
+        "NotificationConfiguration": {
+          "LambdaConfigurations": [
+            {
+              "Event": "s3:ObjectCreated:*",
+              "Function": "arn:aws:lambda:us-east-1:640615917264:function:index-photos-cf"
+            }
+          ]
+        }
+      },
+      "DependsOn": "indexPhotos"
+    },
+    "photosBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "photosBucket"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "PublicReadGetObject",
+              "Effect": "Allow",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": "arn:aws:s3:::hw2-photos-s3-bucket-b2-cf/*"
+            }
+          ]
+        }
+      }
+    },
+    "indexPhotos": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": "myawsbucket-comse6998",
+          "S3Key": "index-photos.zip"
+        },
+        "Description": "Lambda function index-photos (LF1)",
+        "Layers": [
+          "arn:aws:lambda:us-east-1:640615917264:layer:Python:6"
+        ],
+        "MemorySize": 128,
+        "Environment": {
+          "Variables": {
+            "REGION": "us-east-1"
+          }
+        },
+        "Handler": "lambda_function.lambda_handler",
+        "Role": "arn:aws:iam::640615917264:role/service-role/comse6998-hw2-cf-role",
+        "Timeout": 30,
+        "Runtime": "python3.8",
+        "FunctionName": "index-photos-cf"
+      }
+    },
+    "S3InvokeLambdaPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": "index-photos-cf",
+        "Principal": "s3.amazonaws.com",
+        "SourceArn": "arn:aws:s3:::hw2-photos-s3-bucket-b2-cf"
+      },
+      "DependsOn": "indexPhotos"
+    },
+    "lambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Description": "IAM role of HW2 for CloudFormation",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AdministratorAccess"
+        ],
+        "Path": "/service-role/",
+        "RoleName": "comse6998-hw2-cf-role"
+      }
+    },
+    "searchPhotos": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": "myawsbucket-comse6998",
+          "S3Key": "search-photos.zip"
+        },
+        "Description": "Lambda function search-photos (LF2)",
+        "Layers": [
+          "arn:aws:lambda:us-east-1:640615917264:layer:Python:6"
+        ],
+        "MemorySize": 128,
+        "Environment": {
+          "Variables": {
+            "REGION": "us-east-1"
+          }
+        },
+        "Handler": "lambda_function.lambda_handler",
+        "Role": "arn:aws:iam::640615917264:role/service-role/comse6998-hw2-cf-role",
+        "Timeout": 30,
+        "Runtime": "python3.8",
+        "FunctionName": "search-photos-cf"
+      }
+    },
+    "AIPhotoSearchApiGatewayDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "AIPhotoSearch"
+        },
+        "StageName": "v1"
+      }
+    },
+    "AIPhotoSearch": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "BodyS3Location": {
+          "Bucket": "myawsbucket-comse6998",
+          "Key": "AI Photo Search-CF_OpenAPI-API Gateway.json"
+        },
+        "Name": "AI Photo Search-CF"
+      }
+    },
+    "APIGatewayInvokeLambdaPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "searchPhotos"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": [
+            "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${__ApiId__}/${__Stage__}/GET/search",
+            {
+              "__Stage__": "*",
+              "__ApiId__": {
+                "Ref": "AIPhotoSearch"
+              }
+            }
+          ]
+        }
+      },
+      "DependsOn": "searchPhotos"
+    },
+    "APIGatewayProxyCustomRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "apigateway.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Description": "IAM role of HW2 for CloudFormation",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/AdministratorAccess"
+        ],
+        "Path": "/service-role/",
+        "RoleName": "APIGatewayProxyCustom-cf"
+      }
+    },
+    "ESInstance": {
+      "DeletionPolicy": "Retain",
+      "Type": "AWS::Elasticsearch::Domain",
+      "Properties": {
+        "AccessPolicies": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Action": "es:*",
+              "Resource": "arn:aws:es:us-east-1:640615917264:domain/photos/*"
+            }
+          ]
+        },
+        "AdvancedSecurityOptions": {
+          "Enabled": true,
+          "InternalUserDatabaseEnabled": true,
+          "MasterUserOptions": {
+            "MasterUserName": "Administrator",
+            "MasterUserPassword": "Columbia2021%"
+          }
+        },
+        "DomainEndpointOptions": {
+          "EnforceHTTPS": true
+        },
+        "DomainName": "photos",
+        "EBSOptions": {
+          "EBSEnabled": true,
+          "VolumeSize": 10
+        },
+        "ElasticsearchClusterConfig": {
+          "InstanceType": "t3.small.elasticsearch"
+        },
+        "ElasticsearchVersion": "7.9",
+        "EncryptionAtRestOptions": {
+          "Enabled": true
+        },
+        "NodeToNodeEncryptionOptions": {
+          "Enabled": true
+        }
+      }
+    }
+  }
+}
